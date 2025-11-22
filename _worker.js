@@ -337,6 +337,10 @@ async function searchInterface() {
 				padding: 0 15px;
 			}
 			
+			#search-button {
+				width: 50px;
+			}
+			
 			#search-button svg {
 				width: 18px;
 				height: 18px;
@@ -443,12 +447,12 @@ export default {
 		const hubParams = ['/v1/search', '/v1/repositories'];
 		
 		// ************************************************************
-		// *** 修复 1：恢复主页和搜索页的显示逻辑（防止浏览器请求 429） ***
+		// *** 修复 1：拦截浏览器请求（/ 和 /search），避免 429 错误 ***
 		// ************************************************************
 		if (
 			(userAgent && userAgent.includes('mozilla')) || 
 			(url.pathname == '/' && fakePage) ||
-			(url.pathname.startsWith('/search') && fakePage) // <-- 关键修复：拦截 /search 路径
+			(url.pathname.startsWith('/search') && fakePage)
 		) {
 			// 确保只有主页 (/) 或 /search 路径下才显示搜索界面
 			if (url.pathname == '/' || url.pathname.startsWith('/search')) {
@@ -471,6 +475,7 @@ export default {
 		}
 		// ************************************************************
 		
+		// 修复 3：添加缺失的 closing brace '}'，处理爬虫 UA 屏蔽
 		if (屏蔽爬虫UA.some(fxxk => userAgent.includes(fxxk)) && 屏蔽爬虫UA.length > 0) {
 			// 首页改成一个nginx伪装页
 			return new Response(await nginx(), {
@@ -478,8 +483,7 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
-		} 
-
+		} // <-- 修复了此处缺失的 '}'
 
 		// 修改包含 %2F 和 %3A 的请求
 		if (!/%2F/.test(url.search) && /%3A/.test(url.toString())) {
@@ -597,9 +601,14 @@ export default {
 		};
 
 		// -------------------------------------------------------------
-		// *** 【重要】在此处粘贴您的 Base64 认证头 ***
-		// 格式：parameter.headers.Authorization = "Basic Base64字符串";
+		// *** 【重要】在此处粘贴您的 Base64 认证头（例如： "Basic dXNlcm5hbWU6cGFzc3dvcmQ="）***
+		// *** 必须在引号内加上 "Basic " 前缀，并替换 Base64字符串。         ***
 		// -------------------------------------------------------------
+		// ** 示例：parameter.headers.Authorization = "Basic Base64字符串"; **
+		// 
+		// 请在此行下方粘贴您的认证代码：
+		// parameter.headers.Authorization = "Basic dXNlcm5hbWU6cGFzc3dvcmQ="; // <-- 请用您的实际认证头替换此行
+
 		
 		// 添加Authorization头
 		if (request.headers.has("Authorization")) {
