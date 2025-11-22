@@ -496,7 +496,7 @@ export default {
 			console.log(`handle_url: ${url}`);
 		}
 
-		// 处理token请求 (关键修复点：为 token 请求添加 Base64 认证头)
+		// 处理token请求 (用于docker client的第一步授权流程)
 		if (url.pathname.includes('/token')) {
 			let token_parameter = {
 				headers: {
@@ -509,7 +509,7 @@ export default {
 					'Cache-Control': 'max-age=0'
 				}
 			};
-			// 🚨 关键修复：在这里添加 Base64 认证头
+			// 关键：在这里使用 Base64 认证头向 auth 服务器获取 token
 			if (BASE64_AUTH_STRING) {
 				token_parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
 			}
@@ -560,7 +560,7 @@ export default {
 					}
 				};
 
-				// 🚨 关键修复：为内嵌的 Token 请求添加 Base64 认证头
+				// 关键：为内嵌的 Token 请求添加 Base64 认证头
 				if (BASE64_AUTH_STRING) {
 					token_fetch_parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
 				}
@@ -578,7 +578,7 @@ export default {
 						'Accept-Encoding': getReqHeader("Accept-Encoding"),
 						'Connection': 'keep-alive',
 						'Cache-Control': 'max-age=0',
-						'Authorization': `Bearer ${token}`
+						'Authorization': `Bearer ${token}` // 使用 Bearer Token 访问 Registry
 					},
 					cacheTtl: 3600
 				};
@@ -609,7 +609,7 @@ export default {
 			}
 		}
 
-		// 构造请求参数
+		// 构造通用请求参数
 		let parameter = {
 			headers: {
 				'Host': hub_host,
@@ -623,10 +623,7 @@ export default {
 			cacheTtl: 3600 // 缓存时间
 		};
 
-		// 🚨 关键修复：在这里添加 Base64 认证头
-		if (BASE64_AUTH_STRING) {
-			parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
-		}
+		// ❌ 移除 Basic Auth 的自动注入，避免Registry拒绝
 		
 		// 添加Authorization头 (如果请求头中自带，则优先使用)
 		if (request.headers.has("Authorization")) {
@@ -646,7 +643,7 @@ export default {
 		let new_response_headers = new Headers(response_headers);
 		let status = original_response.status;
 
-		// 修改 Www-Authenticate 头
+		// 修改 Www-Authenticate 头 (将 auth.docker.io 重写为 workers 域名)
 		if (new_response_headers.get("Www-Authenticate")) {
 			let auth = new_response_headers.get("Www-Authenticate");
 			let re = new RegExp(auth_url, 'g');
@@ -742,7 +739,7 @@ async function proxy(urlObj, reqInit, rawLen) {
 
 	return new Response(res.body, {
 		status,
-		headers: resHdrNew // 💡 关键修正: 使用 resHdrNew 变量
+		headers: resHdrNew 
 	});
 }
 
