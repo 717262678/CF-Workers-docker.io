@@ -389,7 +389,6 @@ async function searchInterface() {
 		function performSearch() {
 			const query = document.getElementById('search-input').value;
 			if (query) {
-				// 浏览器重定向到 /search?q=...
 				window.location.href = '/search?q=' + encodeURIComponent(query);
 			}
 		}
@@ -412,11 +411,7 @@ async function searchInterface() {
 	return html;
 }
 
-// 🚨 您的 Base64 认证字符串，用于 Docker Hub 认证
-const BASE64_AUTH_STRING = "ZG9uZ3hpYW5naHVpOmRja3JfcGF0X0dvR2FHcXR0OE1Nc2hJTW1hZGVxcnhzSV9Z"; 
-
-// 导出对象是 Cloudflare Pages Functions 要求的结构
-export default { 
+export default {
 	async fetch(request, env, ctx) {
 		const getReqHeader = (key) => request.headers.get(key); // 获取请求头
 
@@ -449,37 +444,6 @@ export default {
 		// 更改请求的主机名
 		url.hostname = hub_host;
 		const hubParams = ['/v1/search', '/v1/repositories'];
-		
-		// ************************************************************
-		// *** 拦截浏览器请求（/ 和 /search），避免 429 错误 ***
-		// ************************************************************
-		if (
-			(userAgent && userAgent.includes('mozilla')) || 
-			(url.pathname == '/' && fakePage) ||
-			(url.pathname.startsWith('/search') && fakePage)
-		) {
-			// 确保只有主页 (/) 或 /search 路径下才显示搜索界面
-			if (url.pathname == '/' || url.pathname.startsWith('/search')) {
-				if (env.URL302) {
-					return Response.redirect(env.URL302, 302);
-				} else if (env.URL) {
-					if (env.URL.toLowerCase() == 'nginx') {
-						return new Response(await nginx(), {
-							headers: { 'Content-Type': 'text/html; charset=UTF-8', },
-						});
-					} else return fetch(new Request(env.URL, request));
-				} else	{
-					// 显示搜索界面
-					return new Response(await searchInterface(), {
-						headers: { 'Content-Type': 'text/html; charset=UTF-8', },
-					});
-				}
-			}
-			// 如果不是主页或搜索页，则继续执行下面的主代理逻辑
-		}
-		// ************************************************************
-		
-		// 处理爬虫 UA 屏蔽
 		if (屏蔽爬虫UA.some(fxxk => userAgent.includes(fxxk)) && 屏蔽爬虫UA.length > 0) {
 			// 首页改成一个nginx伪装页
 			return new Response(await nginx(), {
@@ -487,7 +451,41 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
-		} 
+		} else if ((userAgent && userAgent.includes('mozilla')) || hubParams.some(param => url.pathname.includes(param))) {
+			if (url.pathname == '/') {
+				if (env.URL302) {
+					return Response.redirect(env.URL302, 302);
+				} else if (env.URL) {
+					if (env.URL.toLowerCase() == 'nginx') {
+						//首页改成一个nginx伪装页
+						return new Response(await nginx(), {
+							headers: {
+								'Content-Type': 'text/html; charset=UTF-8',
+							},
+						});
+					} else return fetch(new Request(env.URL, request));
+				} else	{
+					if (fakePage) return new Response(await searchInterface(), {
+						headers: {
+							'Content-Type': 'text/html; charset=UTF-8',
+						},
+					});
+				}
+			} else {
+				// 新增逻辑：/v1/ 路径特殊处理
+				if (url.pathname.startsWith('/v1/')) {
+					url.hostname = 'index.docker.io';
+				} else if (fakePage) {
+					url.hostname = 'hub.docker.com';
+				}
+				if (url.searchParams.get('q')?.includes('library/') && url.searchParams.get('q') != 'library/') {
+					const search = url.searchParams.get('q');
+					url.searchParams.set('q', search.replace('library/', ''));
+				}
+				const newRequest = new Request(url, request);
+				return fetch(newRequest);
+			}
+		}
 
 		// 修改包含 %2F 和 %3A 的请求
 		if (!/%2F/.test(url.search) && /%3A/.test(url.toString())) {
@@ -496,7 +494,7 @@ export default {
 			console.log(`handle_url: ${url}`);
 		}
 
-		// 处理token请求 (用于docker client的第一步授权流程)
+		// 处理token请求
 		if (url.pathname.includes('/token')) {
 			let token_parameter = {
 				headers: {
@@ -509,15 +507,6 @@ export default {
 					'Cache-Control': 'max-age=0'
 				}
 			};
-			// 关键：在这里使用 Base64 认证头向 auth 服务器获取 token
-			if (BASE64_AUTH_STRING) {
-				token_parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
-			}
-			// 如果请求头中自带 Authorization，优先使用
-			if (request.headers.has("Authorization")) {
-				token_parameter.headers.Authorization = getReqHeader("Authorization");
-			}
-
 			let token_url = auth_url + url.pathname + url.search;
 			return fetch(new Request(token_url, request), token_parameter);
 		}
@@ -547,9 +536,7 @@ export default {
 			}
 			if (repo) {
 				const tokenUrl = `${auth_url}/token?service=registry.docker.io&scope=repository:${repo}:pull`;
-				
-				// 构造获取 token 的请求参数
-				let token_fetch_parameter = {
+				const tokenRes = await fetch(tokenUrl, {
 					headers: {
 						'User-Agent': getReqHeader("User-Agent"),
 						'Accept': getReqHeader("Accept"),
@@ -558,15 +545,7 @@ export default {
 						'Connection': 'keep-alive',
 						'Cache-Control': 'max-age=0'
 					}
-				};
-
-				// 关键：为内嵌的 Token 请求添加 Base64 认证头
-				if (BASE64_AUTH_STRING) {
-					token_fetch_parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
-				}
-				
-				const tokenRes = await fetch(tokenUrl, token_fetch_parameter);
-				
+				});
 				const tokenData = await tokenRes.json();
 				const token = tokenData.token;
 				let parameter = {
@@ -578,7 +557,7 @@ export default {
 						'Accept-Encoding': getReqHeader("Accept-Encoding"),
 						'Connection': 'keep-alive',
 						'Cache-Control': 'max-age=0',
-						'Authorization': `Bearer ${token}` // 使用 Bearer Token 访问 Registry
+						'Authorization': `Bearer ${token}`
 					},
 					cacheTtl: 3600
 				};
@@ -609,7 +588,7 @@ export default {
 			}
 		}
 
-		// 构造通用请求参数
+		// 构造请求参数
 		let parameter = {
 			headers: {
 				'Host': hub_host,
@@ -623,11 +602,11 @@ export default {
 			cacheTtl: 3600 // 缓存时间
 		};
 
-		// 添加Authorization头 (如果请求头中自带，则优先使用)
+		// 添加Authorization头
 		if (request.headers.has("Authorization")) {
 			parameter.headers.Authorization = getReqHeader("Authorization");
 		}
-		
+
 		// 添加可能存在字段X-Amz-Content-Sha256
 		if (request.headers.has("X-Amz-Content-Sha256")) {
 			parameter.headers['X-Amz-Content-Sha256'] = getReqHeader("X-Amz-Content-Sha256");
@@ -641,7 +620,7 @@ export default {
 		let new_response_headers = new Headers(response_headers);
 		let status = original_response.status;
 
-		// 修改 Www-Authenticate 头 (将 auth.docker.io 重写为 workers 域名)
+		// 修改 Www-Authenticate 头
 		if (new_response_headers.get("Www-Authenticate")) {
 			let auth = new_response_headers.get("Www-Authenticate");
 			let re = new RegExp(auth_url, 'g');
@@ -662,7 +641,7 @@ export default {
 		});
 		return response;
 	}
-}
+};
 
 /**
  * 处理HTTP请求
@@ -737,7 +716,7 @@ async function proxy(urlObj, reqInit, rawLen) {
 
 	return new Response(res.body, {
 		status,
-		headers: resHdrNew 
+		headers: resHdrNew
 	});
 }
 
