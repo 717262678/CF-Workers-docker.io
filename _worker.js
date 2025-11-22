@@ -623,8 +623,6 @@ export default {
 			cacheTtl: 3600 // 缓存时间
 		};
 
-		// ❌ 移除 Basic Auth 的自动注入，避免Registry拒绝
-		
 		// 添加Authorization头 (如果请求头中自带，则优先使用)
 		if (request.headers.has("Authorization")) {
 			parameter.headers.Authorization = getReqHeader("Authorization");
