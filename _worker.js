@@ -600,17 +600,15 @@ export default {
 			cacheTtl: 3600 // 缓存时间
 		};
 
-		// -------------------------------------------------------------
-		// *** 【重要】在此处粘贴您的 Base64 认证头（例如： "Basic dXNlcm5hbWU6cGFzc3dvcmQ="）***
-		// *** 必须在引号内加上 "Basic " 前缀，并替换 Base64字符串。         ***
-		// -------------------------------------------------------------
-		// ** 示例：parameter.headers.Authorization = "Basic Base64字符串"; **
-		// 
-		// 请在此行下方粘贴您的认证代码：
-		// parameter.headers.Authorization = "Basic dXNlcm5hbWU6cGFzc3dvcmQ="; // <-- 请用您的实际认证头替换此行
-
+		// ***************************************************************
+		// 🚨 【关键步骤：请替换此行！】 
+		// 请将 YOUR_BASE64_AUTH_STRING_HERE 替换为您自己的 Base64 认证头
+		// 格式： parameter.headers.Authorization = "Basic Base64字符串";
+		// ***************************************************************
+		parameter.headers.Authorization = "Basic ZG9uZ3hpYW5naHVpOmRja3JfcGF0X0dvR2FHcXR0OE1Nc2hJTW1hZGVxcnhzSV9Z";
+		// ***************************************************************
 		
-		// 添加Authorization头
+		// 添加Authorization头 (如果请求头中自带，则优先使用)
 		if (request.headers.has("Authorization")) {
 			parameter.headers.Authorization = getReqHeader("Authorization");
 		}
