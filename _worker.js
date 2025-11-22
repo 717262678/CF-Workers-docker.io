@@ -607,7 +607,7 @@ export default {
 		});
 		return response;
 	}
-};
+}
 
 /**
  * 处理HTTP请求
