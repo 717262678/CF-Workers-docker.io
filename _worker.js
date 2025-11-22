@@ -337,10 +337,6 @@ async function searchInterface() {
 				padding: 0 15px;
 			}
 			
-			#search-button {
-				width: 50px;
-			}
-			
 			#search-button svg {
 				width: 18px;
 				height: 18px;
@@ -389,6 +385,7 @@ async function searchInterface() {
 		function performSearch() {
 			const query = document.getElementById('search-input').value;
 			if (query) {
+				// 浏览器重定向到 /search?q=...
 				window.location.href = '/search?q=' + encodeURIComponent(query);
 			}
 		}
@@ -445,15 +442,16 @@ export default {
 		url.hostname = hub_host;
 		const hubParams = ['/v1/search', '/v1/repositories'];
 		
-		// ************************************************
-		// *** 修复 1：恢复主页显示逻辑（不走认证代理） ***
-		// ************************************************
+		// ************************************************************
+		// *** 修复 1：恢复主页和搜索页的显示逻辑（防止浏览器请求 429） ***
+		// ************************************************************
 		if (
 			(userAgent && userAgent.includes('mozilla')) || 
-			(url.pathname == '/' && fakePage)
+			(url.pathname == '/' && fakePage) ||
+			(url.pathname.startsWith('/search') && fakePage) // <-- 关键修复：拦截 /search 路径
 		) {
-			// 确保只有主页 (/) 且在 fakePage 模式下才显示搜索界面
-			if (url.pathname == '/') {
+			// 确保只有主页 (/) 或 /search 路径下才显示搜索界面
+			if (url.pathname == '/' || url.pathname.startsWith('/search')) {
 				if (env.URL302) {
 					return Response.redirect(env.URL302, 302);
 				} else if (env.URL) {
@@ -469,9 +467,9 @@ export default {
 					});
 				}
 			}
-			// 如果不是主页，则继续执行下面的主代理逻辑
+			// 如果不是主页或搜索页，则继续执行下面的主代理逻辑
 		}
-		// ************************************************
+		// ************************************************************
 		
 		if (屏蔽爬虫UA.some(fxxk => userAgent.includes(fxxk)) && 屏蔽爬虫UA.length > 0) {
 			// 首页改成一个nginx伪装页
@@ -480,7 +478,7 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
-		} // <-- 确保这里有 } 
+		} 
 
 
 		// 修改包含 %2F 和 %3A 的请求
