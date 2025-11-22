@@ -412,6 +412,9 @@ async function searchInterface() {
 	return html;
 }
 
+// 🚨 您的 Base64 认证字符串，请替换为您自己的值
+const BASE64_AUTH_STRING = "ZG9uZ3hpYW5naHVpOmRja3JfcGF0X0dvR2FHcXR0OE1Nc2hJTW1hZGVxcnhzSV9Z"; // <-- ❗ 仅替换此处的字符串
+
 export default {
 	async fetch(request, env, ctx) {
 		const getReqHeader = (key) => request.headers.get(key); // 获取请求头
@@ -447,7 +450,7 @@ export default {
 		const hubParams = ['/v1/search', '/v1/repositories'];
 		
 		// ************************************************************
-		// *** 修复 1：拦截浏览器请求（/ 和 /search），避免 429 错误 ***
+		// *** 拦截浏览器请求（/ 和 /search），避免 429 错误 ***
 		// ************************************************************
 		if (
 			(userAgent && userAgent.includes('mozilla')) || 
@@ -475,7 +478,7 @@ export default {
 		}
 		// ************************************************************
 		
-		// 修复 3：添加缺失的 closing brace '}'，处理爬虫 UA 屏蔽
+		// 处理爬虫 UA 屏蔽
 		if (屏蔽爬虫UA.some(fxxk => userAgent.includes(fxxk)) && 屏蔽爬虫UA.length > 0) {
 			// 首页改成一个nginx伪装页
 			return new Response(await nginx(), {
@@ -483,7 +486,7 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
-		} // <-- 修复了此处缺失的 '}'
+		} 
 
 		// 修改包含 %2F 和 %3A 的请求
 		if (!/%2F/.test(url.search) && /%3A/.test(url.toString())) {
@@ -492,7 +495,7 @@ export default {
 			console.log(`handle_url: ${url}`);
 		}
 
-		// 处理token请求
+		// 处理token请求 (关键修复点：为 token 请求添加 Base64 认证头)
 		if (url.pathname.includes('/token')) {
 			let token_parameter = {
 				headers: {
@@ -505,6 +508,15 @@ export default {
 					'Cache-Control': 'max-age=0'
 				}
 			};
+			// 🚨 关键修复：在这里添加 Base64 认证头
+			if (BASE64_AUTH_STRING) {
+				token_parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
+			}
+			// 如果请求头中自带 Authorization，优先使用
+			if (request.headers.has("Authorization")) {
+				token_parameter.headers.Authorization = getReqHeader("Authorization");
+			}
+
 			let token_url = auth_url + url.pathname + url.search;
 			return fetch(new Request(token_url, request), token_parameter);
 		}
@@ -534,7 +546,9 @@ export default {
 			}
 			if (repo) {
 				const tokenUrl = `${auth_url}/token?service=registry.docker.io&scope=repository:${repo}:pull`;
-				const tokenRes = await fetch(tokenUrl, {
+				
+				// 构造获取 token 的请求参数
+				let token_fetch_parameter = {
 					headers: {
 						'User-Agent': getReqHeader("User-Agent"),
 						'Accept': getReqHeader("Accept"),
@@ -543,7 +557,15 @@ export default {
 						'Connection': 'keep-alive',
 						'Cache-Control': 'max-age=0'
 					}
-				});
+				};
+
+				// 🚨 关键修复：为内嵌的 Token 请求添加 Base64 认证头
+				if (BASE64_AUTH_STRING) {
+					token_fetch_parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
+				}
+				
+				const tokenRes = await fetch(tokenUrl, token_fetch_parameter);
+				
 				const tokenData = await tokenRes.json();
 				const token = tokenData.token;
 				let parameter = {
@@ -600,13 +622,10 @@ export default {
 			cacheTtl: 3600 // 缓存时间
 		};
 
-		// ***************************************************************
-		// 🚨 【关键步骤：请替换此行！】 
-		// 请将 YOUR_BASE64_AUTH_STRING_HERE 替换为您自己的 Base64 认证头
-		// 格式： parameter.headers.Authorization = "Basic Base64字符串";
-		// ***************************************************************
-		parameter.headers.Authorization = "Basic ZG9uZ3hpYW5naHVpOmRja3JfcGF0X0dvR2FHcXR0OE1Nc2hJTW1hZGVxcnhzSV9Z";
-		// ***************************************************************
+		// 🚨 关键修复：在这里添加 Base64 认证头
+		if (BASE64_AUTH_STRING) {
+			parameter.headers.Authorization = `Basic ${BASE64_AUTH_STRING}`;
+		}
 		
 		// 添加Authorization头 (如果请求头中自带，则优先使用)
 		if (request.headers.has("Authorization")) {
