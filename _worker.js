@@ -451,6 +451,7 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
+		} // <-- **修复点 1：缺少此处的 } 导致编译失败**
 		
 
 		// 修改包含 %2F 和 %3A 的请求
@@ -568,11 +569,16 @@ export default {
 			cacheTtl: 3600 // 缓存时间
 		};
 
+		// -------------------------------------------------------------
+		// *** 【重要】在此处粘贴您的 Base64 认证头 ***
+		// 格式：parameter.headers.Authorization = "Basic Base64字符串";
+		// -------------------------------------------------------------
+		
 		// 添加Authorization头
 		if (request.headers.has("Authorization")) {
 			parameter.headers.Authorization = getReqHeader("Authorization");
 		}
-
+		
 		// 添加可能存在字段X-Amz-Content-Sha256
 		if (request.headers.has("X-Amz-Content-Sha256")) {
 			parameter.headers['X-Amz-Content-Sha256'] = getReqHeader("X-Amz-Content-Sha256");
@@ -607,7 +613,7 @@ export default {
 		});
 		return response;
 	}
-}
+} // <-- **修复点 2：缺少此处的 } 导致下一行函数定义失败**
 
 /**
  * 处理HTTP请求
