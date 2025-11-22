@@ -444,6 +444,35 @@ export default {
 		// 更改请求的主机名
 		url.hostname = hub_host;
 		const hubParams = ['/v1/search', '/v1/repositories'];
+		
+		// ************************************************
+		// *** 修复 1：恢复主页显示逻辑（不走认证代理） ***
+		// ************************************************
+		if (
+			(userAgent && userAgent.includes('mozilla')) || 
+			(url.pathname == '/' && fakePage)
+		) {
+			// 确保只有主页 (/) 且在 fakePage 模式下才显示搜索界面
+			if (url.pathname == '/') {
+				if (env.URL302) {
+					return Response.redirect(env.URL302, 302);
+				} else if (env.URL) {
+					if (env.URL.toLowerCase() == 'nginx') {
+						return new Response(await nginx(), {
+							headers: { 'Content-Type': 'text/html; charset=UTF-8', },
+						});
+					} else return fetch(new Request(env.URL, request));
+				} else	{
+					// 显示搜索界面
+					return new Response(await searchInterface(), {
+						headers: { 'Content-Type': 'text/html; charset=UTF-8', },
+					});
+				}
+			}
+			// 如果不是主页，则继续执行下面的主代理逻辑
+		}
+		// ************************************************
+		
 		if (屏蔽爬虫UA.some(fxxk => userAgent.includes(fxxk)) && 屏蔽爬虫UA.length > 0) {
 			// 首页改成一个nginx伪装页
 			return new Response(await nginx(), {
@@ -451,8 +480,8 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
-		} // <-- **修复点 1：缺少此处的 } 导致编译失败**
-		
+		} // <-- 确保这里有 } 
+
 
 		// 修改包含 %2F 和 %3A 的请求
 		if (!/%2F/.test(url.search) && /%3A/.test(url.toString())) {
@@ -613,7 +642,7 @@ export default {
 		});
 		return response;
 	}
-} // <-- **修复点 2：缺少此处的 } 导致下一行函数定义失败**
+}
 
 /**
  * 处理HTTP请求
