@@ -451,41 +451,7 @@ export default {
 					'Content-Type': 'text/html; charset=UTF-8',
 				},
 			});
-		} else if ((userAgent && userAgent.includes('mozilla')) || hubParams.some(param => url.pathname.includes(param))) {
-			if (url.pathname == '/') {
-				if (env.URL302) {
-					return Response.redirect(env.URL302, 302);
-				} else if (env.URL) {
-					if (env.URL.toLowerCase() == 'nginx') {
-						//首页改成一个nginx伪装页
-						return new Response(await nginx(), {
-							headers: {
-								'Content-Type': 'text/html; charset=UTF-8',
-							},
-						});
-					} else return fetch(new Request(env.URL, request));
-				} else	{
-					if (fakePage) return new Response(await searchInterface(), {
-						headers: {
-							'Content-Type': 'text/html; charset=UTF-8',
-						},
-					});
-				}
-			} else {
-				// 新增逻辑：/v1/ 路径特殊处理
-				if (url.pathname.startsWith('/v1/')) {
-					url.hostname = 'index.docker.io';
-				} else if (fakePage) {
-					url.hostname = 'hub.docker.com';
-				}
-				if (url.searchParams.get('q')?.includes('library/') && url.searchParams.get('q') != 'library/') {
-					const search = url.searchParams.get('q');
-					url.searchParams.set('q', search.replace('library/', ''));
-				}
-				const newRequest = new Request(url, request);
-				return fetch(newRequest);
-			}
-		}
+		
 
 		// 修改包含 %2F 和 %3A 的请求
 		if (!/%2F/.test(url.search) && /%3A/.test(url.toString())) {
